@@ -1,10 +1,17 @@
-# TODO
-# - https://wiki.archlinux.org/index.php/Parallels
+# NOTE
+# - some useful urls:
+#   - https://wiki.archlinux.org/index.php/Parallels
+#   - http://download.parallels.com/desktop/v6/docs/en/Parallels_Desktop_Users_Guide/22570.htm
 #
 # Conditional build:
 %bcond_without	kernel		# without kernel modules
 %bcond_without	dist_kernel	# without distribution kernel
 %bcond_without	userspace	# without userspace package
+
+# this bcond needed to build 2.6.16 kernel, just up for now
+%if "%{pld_release}" == "ac"
+%bcond_without	up
+%endif
 
 %define		rel    	0.1
 Summary:	Parallels Guest Utilities
@@ -16,13 +23,14 @@ Group:		Applications/System
 # Get this from your Mac having Parallels installed: /Library/Parallels/Tools/
 Source0:	%{name}-lin.iso
 # Source0-md5:	f3c1e1f57127a06d17bbb3ccb086f657
-URL:		http://download.parallels.com/desktop/v6/docs/en/Parallels_Desktop_Users_Guide/22570.htm
+URL:		http://download.parallels.com/desktop/v6/docs/en/Parallels_Desktop_Users_Guide/22272.htm
 BuildRequires:	/usr/bin/isoinfo
+BuildRequires:	rpm >= 4.4.9-56
 BuildRequires:	rpmbuild(macros) >= 1.453
 %if %{with userspace}
 %endif
 %if %{with kernel} && %{with dist_kernel}
-BuildRequires:	kernel%{_alt_kernel}-module-build >= 3:2.6.27
+BuildRequires:	kernel%{_alt_kernel}-module-build >= 3:2.6.16
 %endif
 ExclusiveArch:	%{ix86} %{x8664}
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
@@ -38,7 +46,6 @@ Summary:	Parallels Linux kernel modules
 Release:	%{rel}@%{_kernel_ver_str}
 Group:		Base/Kernel
 Requires(post,postun):	/sbin/depmod
-Requires:	dev >= 2.9.0-7
 %if %{with dist_kernel}
 %requires_releq_kernel
 Requires(postun):	%releq_kernel
