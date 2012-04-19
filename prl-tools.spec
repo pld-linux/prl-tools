@@ -70,6 +70,8 @@ for file in $(isoinfo -Rf -i $image_file); do
 	isoinfo -R -i $image_file -x $file > .$file
 done
 
+cat version
+
 %{__tar} -xzf kmods/prl_mod.tar* -C kmods
 
 cat << 'EOF' > kmods/prl_eth/pvmnet/Makefile
@@ -86,8 +88,8 @@ EXTRA_CFLAGS += -DPRL_INTERRUPTIBLE_COMPLETION
 EOF
 
 cat << EOF > kmods/prl_fs/SharedFolders/Guest/Linux/prl_fs/Makefile
-obj-m := prl_tg.o
-prl_tg-objs := super.o inode.o file.o interface.o
+obj-m := prl_fs.o
+prl_fs-objs := super.o inode.o file.o interface.o
 
 EXTRA_CFLAGS += -I$(pwd)/kmods/prl_fs
 EXTRA_CFLAGS += -DPRLFS_IGET
@@ -95,10 +97,10 @@ EOF
 
 %build
 %if %{with kernel}
-%build_kernel_modules -C kmods/prl_eth/pvmnet -m prl_eth
-%build_kernel_modules -C kmods/prl_tg/Toolgate/Guest/Linux/prl_tg -m prl_tg
-%build_kernel_modules -C kmods/prl_fs/SharedFolders/Guest/Linux/prl_fs -m prl_tg
-%build_kernel_modules -C kmods/prl_fs_freeze/Snapshot/Guest/Linux/prl_freeze -m prl_fs_freeze
+%build_kernel_modules -m prl_eth -C kmods/prl_eth/pvmnet
+%build_kernel_modules -m prl_tg -C kmods/prl_tg/Toolgate/Guest/Linux/prl_tg
+%build_kernel_modules -m prl_fs -C kmods/prl_fs/SharedFolders/Guest/Linux/prl_fs
+%build_kernel_modules -m prl_fs_freeze -C kmods/prl_fs_freeze/Snapshot/Guest/Linux/prl_freeze
 %endif
 
 %if %{with userspace}
@@ -110,9 +112,11 @@ rm -rf $RPM_BUILD_ROOT
 %if %{with kernel}
 %install_kernel_modules -d misc -m kmods/prl_eth/pvmnet/prl_eth
 %install_kernel_modules -d misc -m kmods/prl_tg/Toolgate/Guest/Linux/prl_tg/prl_tg
-# same module name, try renaming
-%install_kernel_modules -d misc -m kmods/prl_fs/SharedFolders/Guest/Linux/prl_fs/prl_tg -s prl_fs
+%install_kernel_modules -d misc -m kmods/prl_fs/SharedFolders/Guest/Linux/prl_fs/prl_fs
 %install_kernel_modules -d misc -m kmods/prl_fs_freeze/Snapshot/Guest/Linux/prl_freeze/prl_fs_freeze
+
+install -d $RPM_BUILD_ROOT/etc/modprobe.d/%{_kernel_ver}
+cp -p installer/blacklist-parallels.conf $RPM_BUILD_ROOT/etc/modprobe.d/%{_kernel_ver}
 %endif
 
 %if %{with userspace}
@@ -132,8 +136,9 @@ rm -rf $RPM_BUILD_ROOT
 %if %{with kernel}
 %files -n kernel%{_alt_kernel}-misc-prl
 %defattr(644,root,root,755)
+/etc/modprobe.d/%{_kernel_ver}/blacklist-parallels.conf
 /lib/modules/%{_kernel_ver}/misc/prl_eth.ko*
+/lib/modules/%{_kernel_ver}/misc/prl_fs.ko*
 /lib/modules/%{_kernel_ver}/misc/prl_fs_freeze.ko*
 /lib/modules/%{_kernel_ver}/misc/prl_tg.ko*
-/lib/modules/%{_kernel_ver}/misc/prl_tg-prl_fs.ko*
 %endif
