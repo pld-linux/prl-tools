@@ -7,6 +7,7 @@
 %bcond_without	kernel		# without kernel modules
 %bcond_without	dist_kernel	# without distribution kernel
 %bcond_without	userspace	# without userspace package
+%bcond_without	xorg		# without xorg parts (xorg/xfree is supported up to 11.x)
 
 # this bcond needed to build 2.6.16 kernel, just up for now
 %if "%{pld_release}" == "ac"
@@ -28,6 +29,11 @@ BuildRequires:	/usr/bin/isoinfo
 BuildRequires:	rpm >= 4.4.9-56
 BuildRequires:	rpmbuild(macros) >= 1.453
 %if %{with userspace}
+%if "%{pld_release}" == "ac"
+BuildRequires:	XFree86-devel
+%else
+BuildRequires:	xorg-xserver-server-devel
+%endif
 %endif
 %if %{with kernel} && %{with dist_kernel}
 BuildRequires:	kernel%{_alt_kernel}-module-build >= 3:2.6.16
@@ -38,8 +44,33 @@ BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 # constify %rel macro, so it wouldn't expand in kernel subpkgs
 %{expand:%%global rel %{release}}
 
+# So that building package on AC system won't write package name dep that Th system can't understand (libstdc++4)
+%define		_noautoreqdep	libstdc++.so.6
+
 %description
 Parallels Guest Utilities.
+
+%package -n xorg-driver-input-prlmouse
+Summary:	X.org mouse driver for Parallels guest OS
+Group:		X11/Applications
+#Requires:	xorg-xserver-server >= 1.0.99.901
+#Requires:	xorg-xserver-server(xinput-abi) <= 16.0
+#Requires:	xorg-xserver-server(xinput-abi) >= 4.0
+
+%description -n xorg-driver-input-prlmouse
+X.org mouse driver for Parallels guest OS.
+
+%package -n xorg-driver-video-prlvideo
+Summary:	X.org video driver for Parallels guest OS
+Group:		X11/Applications
+#Requires:	Mesa-dri-driver-swrast
+#Requires:	xorg-xserver-libdri >= 1.7.4
+#Requires:	xorg-xserver-server >= 1.0.99.901
+#Requires:	xorg-xserver-server(videodrv-abi) <= 12.0
+#Requires:	xorg-xserver-server(videodrv-abi) >= 2.0
+
+%description -n xorg-driver-video-prlvideo
+X.org video driver for Paralllesguest OS.
 
 %package -n kernel%{_alt_kernel}-misc-prl
 Summary:	Parallels Linux kernel modules
@@ -72,6 +103,16 @@ done
 
 cat version
 
+# unpack userspace
+%ifarch %{ix86}
+src=prltools.tar.gz
+%endif
+%ifarch %{x8664}
+src=prltools.x64.tar.gz
+%endif
+%{__tar} -xzf tools/$src -C tools
+
+# unpack kernel
 %{__tar} -xzf kmods/prl_mod.tar* -C kmods
 
 cat << 'EOF' > kmods/prl_eth/pvmnet/Makefile
@@ -120,6 +161,23 @@ cp -p installer/blacklist-parallels.conf $RPM_BUILD_ROOT/etc/modprobe.d/%{_kerne
 %endif
 
 %if %{with userspace}
+install -d $RPM_BUILD_ROOT{%{_bindir},%{_sbindir},%{_libdir}}
+install -p tools/bin/* $RPM_BUILD_ROOT%{_bindir}
+install -p tools/sbin/* $RPM_BUILD_ROOT%{_sbindir}
+
+%if %{with xorg}
+install -d $RPM_BUILD_ROOT%{_libdir}/xorg/modules/{drivers,input}
+
+%if "%{pld_release}" == "ac"
+xorg_version=$(awk '/define.*XOrgReleaseString.*\./{print $NF}' %{_prefix}/X11R6/%{_lib}/X11/config/X11.tmpl)
+%else
+xorg_version=$(pkg-config --modversion xorg-server)
+install -p tools/xorg.$xorg_version/usr/lib/libglx.so.1.0.0 $RPM_BUILD_ROOT%{_libdir}
+%endif
+
+install -p tools/xorg.$xorg_version/x-server/modules/input/prlmouse_drv.so $RPM_BUILD_ROOT%{_libdir}/xorg/modules/input
+install -p tools/xorg.$xorg_version/x-server/modules/drivers/prlvideo_drv.so $RPM_BUILD_ROOT%{_libdir}/xorg/modules/drivers
+%endif
 %endif
 
 %clean
@@ -131,6 +189,24 @@ rm -rf $RPM_BUILD_ROOT
 %if %{with userspace}
 %files
 %defattr(644,root,root,755)
+%attr(755,root,root) %{_bindir}/prl_istatus
+%attr(755,root,root) %{_bindir}/prl_showvmcfg
+%attr(755,root,root) %{_bindir}/prl_wmouse_d
+%attr(755,root,root) %{_bindir}/prlhosttime
+%attr(755,root,root) %{_sbindir}/prl-opengl-switcher.sh
+%attr(755,root,root) %{_sbindir}/prl-xorgconf-fixer
+%attr(755,root,root) %{_sbindir}/prl_nettool
+%attr(755,root,root) %{_sbindir}/prl_snapshot
+%endif
+
+%if %{with xorg}
+%files -n xorg-driver-input-prlmouse
+%defattr(644,root,root,755)
+%attr(755,root,root) %{_libdir}/xorg/modules/input/prlmouse_drv.so
+
+%files -n xorg-driver-video-prlvideo
+%defattr(644,root,root,755)
+%attr(755,root,root) %{_libdir}/xorg/modules/drivers/prlvideo_drv.so
 %endif
 
 %if %{with kernel}
